@@ -25,7 +25,6 @@ func getLinesChannel(f net.Conn) <-chan string {
 			parts := strings.Split(string(buffer[:n]), "\n")
 			line += parts[0]
 			if len(parts) > 1 {
-				fmt.Println(line)
 				ch <- fmt.Sprintf("%s\n", line)
 				line = parts[1]
 			}
@@ -50,10 +49,6 @@ func main() {
 	}
 	defer conn.Close()
 	fmt.Println("listener accepted")
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
 	ch := getLinesChannel(conn)
 	for line := range ch {
 		fmt.Printf("read: %s", line)
