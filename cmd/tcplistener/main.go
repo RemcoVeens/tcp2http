@@ -12,6 +12,7 @@ func getLinesChannel(f net.Conn) <-chan string {
 	// defer close(ch)
 	go func() {
 		var line string
+		defer close(ch)
 		for {
 			buffer := make([]byte, 8)
 			n, err := f.Read(buffer)
@@ -29,7 +30,7 @@ func getLinesChannel(f net.Conn) <-chan string {
 				line = parts[1]
 			}
 		}
-		close(ch)
+		ch <- line
 		fmt.Println("listener closed")
 	}()
 	return ch
