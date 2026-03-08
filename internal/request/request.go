@@ -3,19 +3,26 @@ package request
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+
+	"github.com/RemcoVeens/tcp2http/internal/headers"
 )
 
 type Status int
 
 const (
 	Initialized Status = iota
+	RequestStateParsingHeaders
+	ParsingBody
 	Done
 )
 
 type Request struct {
 	RequestLine RequestLine
 	Status      Status
+	Headers     headers.Headers
+	Body        []byte
 }
 
 type RequestLine struct {
@@ -73,37 +80,76 @@ func RequestFromReader(reader io.Reader) (r *Request, err error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	if r.Status == Done {
+	if r.Headers == nil {
+		r.Headers = headers.NewHeaders()
+	}
+	switch r.Status {
+	case Done:
 		return 0, nil
-	}
+	case Initialized:
+		idx := strings.Index(string(data), "\r\n")
+		if idx == -1 {
+			return 0, nil
+		}
 
-	idx := strings.Index(string(data), "\r\n")
-	if idx == -1 {
-		return 0, nil
-	}
+		line := string(data[:idx])
+		parts := strings.Split(line, " ")
+		if len(parts) != 3 {
+			return 0, fmt.Errorf("invalid request line: %s", line)
+		}
+		versionParts := strings.Split(parts[2], "/")
+		if len(versionParts) != 2 {
+			return 0, fmt.Errorf("invalid http version: %s", parts[2])
+		}
+		rl := RequestLine{
+			Method:        parts[0],
+			RequestTarget: parts[1],
+			HttpVersion:   versionParts[1],
+		}
+		if strings.ToUpper(rl.Method) != rl.Method {
+			return 0, fmt.Errorf("method is not upper")
+		}
+		if rl.HttpVersion != "1.1" {
+			return 0, fmt.Errorf("http version is not HTTP/1.1: %s", rl.HttpVersion)
+		}
+		r.RequestLine = rl
+		r.Status = RequestStateParsingHeaders
+		return idx + 2, nil
+	case RequestStateParsingHeaders:
+		if len(data) == 0 {
+			return 0, fmt.Errorf("no data to parse")
+		}
+		parsedHeaders, done, parseErr := r.Headers.Parse(data)
+		if parseErr != nil {
+			return 0, parseErr
+		}
+		if done {
+			r.Status = ParsingBody
+		}
+		return parsedHeaders, nil
+	case ParsingBody:
+		contentLength := r.Headers.Get("Content-Length")
+		r.Body = append(r.Body, data...)
+		if contentLength == "" {
+			if len(data) == 0 {
+				r.Status = Done
+				return len(data), nil
+			}
+			return len(data), nil
+		}
+		if len(data) == 0 {
+			return 0, fmt.Errorf("no data to parse")
+		}
+		ContentLength, _ := strconv.Atoi(contentLength)
+		if len(r.Body) > ContentLength {
+			return 0, fmt.Errorf("body length (%d) exceeds content length (%d)", len(r.Body), ContentLength)
+		} else if len(r.Body) == ContentLength {
+			r.Status = Done
+			fmt.Println("body parsed:", string(r.Body))
+		}
+		return len(data), nil
 
-	line := string(data[:idx])
-	parts := strings.Split(line, " ")
-	if len(parts) != 3 {
-		return 0, fmt.Errorf("invalid request line: %s", line)
+	default:
+		return 0, fmt.Errorf("unknown status: %v", r.Status)
 	}
-	versionParts := strings.Split(parts[2], "/")
-	if len(versionParts) != 2 {
-		return 0, fmt.Errorf("invalid http version: %s", parts[2])
-	}
-	rl := RequestLine{
-		Method:        parts[0],
-		RequestTarget: parts[1],
-		HttpVersion:   versionParts[1],
-	}
-	if strings.ToUpper(rl.Method) != rl.Method {
-		return 0, fmt.Errorf("method is not upper")
-	}
-	if rl.HttpVersion != "1.1" {
-		return 0, fmt.Errorf("http version is not HTTP/1.1: %s", rl.HttpVersion)
-	}
-	r.RequestLine = rl
-	r.Status = Done
-
-	return idx + 2, nil
 }

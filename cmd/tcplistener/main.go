@@ -29,4 +29,10 @@ func main() {
 	fmt.Printf(
 		"Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n",
 		req.RequestLine.Method, req.RequestLine.RequestTarget, req.RequestLine.HttpVersion)
+	fmt.Println("Headers:")
+	for k, v := range req.Headers {
+		fmt.Printf("- %s: %s\n", k, v)
+	}
+	fmt.Println("Body:")
+	fmt.Println(string(req.Body))
 }

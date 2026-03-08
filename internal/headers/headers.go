@@ -39,6 +39,13 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	data = data[idx+2:]
 	return
 }
+func (h Headers) Get(key string) string {
+	key = strings.ToLower(key)
+	if value, ok := h[key]; ok {
+		return value
+	}
+	return ""
+}
 
 func NewHeaders() Headers {
 	return Headers{}
