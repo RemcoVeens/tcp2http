@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"sync/atomic"
+
+	"github.com/RemcoVeens/tcp2http/internal/response"
 )
 
 type Server struct {
@@ -46,14 +48,8 @@ func (s *Server) listen() {
 
 func (s Server) handle(conn net.Conn) {
 	defer conn.Close()
-	resp := []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello World!\r\n\r\n")
-	fmt.Printf("%s", resp)
-	status, err := conn.Write(resp)
-	if err != nil {
-		log.Printf("write error: %v", err)
-	}
-	if status != len(resp) {
-		log.Printf("write incomplete: %d/%d", status, len(resp))
-	}
+	response.WriteStatusLine(conn, response.OK)
+	response.WriteHeaders(conn, response.GetDefaultHeaders(0))
+	// log.Printf("got a connection from %s", conn.RemoteAddr())
 
 }
