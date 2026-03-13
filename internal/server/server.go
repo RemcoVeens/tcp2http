@@ -46,7 +46,7 @@ func (s *Server) listen() {
 
 func (s Server) handle(conn net.Conn) {
 	defer conn.Close()
-	resp := []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello World!\r\n\r\n")
+	resp := []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello World!\r\n\r\n")
 	fmt.Printf("%s", resp)
 	status, err := conn.Write(resp)
 	if err != nil {
