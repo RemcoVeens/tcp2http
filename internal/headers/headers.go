@@ -2,14 +2,18 @@ package headers
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
 type Headers map[string]string
 
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
-	if strings.HasPrefix(string(data), "\r\n") {
-		return n + 2, true, nil
+	if len(data) >= 2 && string(data[:2]) == "\r\n" {
+		return 2, true, nil
+	}
+	if len(data) == 0 {
+		return 0, false, nil
 	}
 	idx := strings.Index(string(data), "\r\n")
 	if idx == -1 {
@@ -37,6 +41,10 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 	n += idx + 2
 	data = data[idx+2:]
+	if len(data) == 2 && string(data) == "\r\n" {
+		log.Println("done with headers")
+		return n, true, nil
+	}
 	return
 }
 func (h Headers) Get(key string) string {

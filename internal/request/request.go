@@ -3,6 +3,7 @@ package request
 import (
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 
@@ -61,17 +62,22 @@ func RequestFromReader(reader io.Reader) (r *Request, err error) {
 		}
 		if parsed > 0 {
 			bytesParsed += parsed
-			copy(buffer, buffer[parsed:bytesInBuffer])
-			bytesInBuffer -= parsed
+			if parsed >= bytesInBuffer {
+				bytesInBuffer = 0
+			} else {
+				copy(buffer, buffer[parsed:bytesInBuffer])
+				bytesInBuffer -= parsed
+			}
 		}
 
 		if readErr != nil {
 			if readErr == io.EOF {
-				if r.Status == Done || bytesInBuffer == 0 {
+				if r.Status == Done {
 					_ = bytesRead
 					_ = bytesParsed
 					return r, nil
 				}
+				return nil, fmt.Errorf("connection closed before complete body was received")
 			} else {
 				return nil, readErr
 			}
@@ -114,33 +120,49 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 		r.RequestLine = rl
 		r.Status = RequestStateParsingHeaders
+		fmt.Println(r)
 		return idx + 2, nil
 	case RequestStateParsingHeaders:
 		if len(data) == 0 {
 			return 0, fmt.Errorf("no data to parse")
 		}
+		fmt.Println(string(data))
 		parsedHeaders, done, parseErr := r.Headers.Parse(data)
 		if parseErr != nil {
+			log.Println("error")
 			return 0, parseErr
 		}
 		if done {
+			log.Println("headers parsed:", r.Headers)
 			r.Status = ParsingBody
+			if parsedHeaders < len(data) {
+				data = data[parsedHeaders:]
+				if len(data) >= 2 && string(data[:2]) == "\r\n" {
+					parsedHeaders += 2
+				}
+			}
 		}
 		return parsedHeaders, nil
 	case ParsingBody:
+		log.Println("parsing body")
 		contentLength := r.Headers.Get("Content-Length")
-		r.Body = append(r.Body, data...)
 		if contentLength == "" {
 			if len(data) == 0 {
 				r.Status = Done
 				return len(data), nil
 			}
+			r.Body = append(r.Body, data...)
 			return len(data), nil
 		}
-		if len(data) == 0 {
-			return 0, fmt.Errorf("no data to parse")
-		}
 		ContentLength, _ := strconv.Atoi(contentLength)
+		if ContentLength == 0 {
+			if len(data) > 0 {
+				return 0, fmt.Errorf("body not expected when content length is 0")
+			}
+			r.Status = Done
+			return 0, nil
+		}
+		r.Body = append(r.Body, data...)
 		if len(r.Body) > ContentLength {
 			return 0, fmt.Errorf("body length (%d) exceeds content length (%d)", len(r.Body), ContentLength)
 		} else if len(r.Body) == ContentLength {
