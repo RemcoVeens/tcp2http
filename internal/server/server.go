@@ -70,6 +70,8 @@ func (s Server) handle(conn net.Conn) {
 	}
 
 	response.WriteStatusLine(conn, response.OK)
-	response.WriteHeaders(conn, response.GetDefaultHeaders(buf.Len()))
+	headers := response.GetDefaultHTMLHeaders(buf.Len())
+	headers["Connection"] = "close"
+	response.WriteHeaders(conn, headers)
 	conn.Write(buf.Bytes())
 }

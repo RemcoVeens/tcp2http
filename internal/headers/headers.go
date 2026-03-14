@@ -2,7 +2,6 @@ package headers
 
 import (
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -42,7 +41,6 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	n += idx + 2
 	data = data[idx+2:]
 	if len(data) == 2 && string(data) == "\r\n" {
-		log.Println("done with headers")
 		return n, true, nil
 	}
 	return

@@ -3,7 +3,6 @@ package response
 import (
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 
 	"github.com/RemcoVeens/tcp2http/internal/headers"
@@ -42,9 +41,16 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 	return headers
 }
 
+func GetDefaultHTMLHeaders(contentLen int) headers.Headers {
+	headers := headers.Headers{}
+	headers["Content-Length"] = strconv.Itoa(contentLen)
+	headers["Connection"] = "close"
+	headers["Content-Type"] = "text/html"
+	return headers
+}
+
 func WriteHeaders(w io.Writer, headers headers.Headers) error {
 	for hdr := range headers {
-		log.Printf("%s: %s\r\n", hdr, headers[hdr])
 		_, err := w.Write([]byte(hdr + ": " + headers[hdr] + "\r\n"))
 		if err != nil {
 			return err

@@ -56,9 +56,13 @@ func RequestFromReader(reader io.Reader) (r *Request, err error) {
 			bytesRead += n
 		}
 
+		log.Printf("DEBUG main: calling parse with bytesInBuffer=%d", bytesInBuffer)
 		parsed, parseErr := r.parse(buffer[:bytesInBuffer])
 		if parseErr != nil {
 			return nil, parseErr
+		}
+		if r.Status == Done {
+			return r, nil
 		}
 		if parsed > 0 {
 			bytesParsed += parsed
@@ -72,9 +76,12 @@ func RequestFromReader(reader io.Reader) (r *Request, err error) {
 
 		if readErr != nil {
 			if readErr == io.EOF {
+				log.Printf("DEBUG main: EOF, r.Status=%d", r.Status)
 				if r.Status == Done {
-					_ = bytesRead
-					_ = bytesParsed
+					return r, nil
+				}
+				if r.Status == ParsingBody && r.Headers.Get("Content-Length") == "" {
+					r.Status = Done
 					return r, nil
 				}
 				return nil, fmt.Errorf("connection closed before complete body was received")
@@ -120,38 +127,39 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 		r.RequestLine = rl
 		r.Status = RequestStateParsingHeaders
-		fmt.Println(r)
 		return idx + 2, nil
 	case RequestStateParsingHeaders:
 		if len(data) == 0 {
 			return 0, fmt.Errorf("no data to parse")
 		}
-		fmt.Println(string(data))
 		parsedHeaders, done, parseErr := r.Headers.Parse(data)
 		if parseErr != nil {
-			log.Println("error")
 			return 0, parseErr
 		}
 		if done {
-			log.Println("headers parsed:", r.Headers)
+			log.Printf("DEBUG: headers done, len(data)=%d, parsedHeaders=%d", len(data), parsedHeaders)
 			r.Status = ParsingBody
-			if parsedHeaders < len(data) {
-				data = data[parsedHeaders:]
-				if len(data) >= 2 && string(data[:2]) == "\r\n" {
-					parsedHeaders += 2
-				}
+			consumed := parsedHeaders
+			if parsedHeaders+2 <= len(data) && string(data[parsedHeaders:parsedHeaders+2]) == "\r\n" {
+				consumed += 2
 			}
+			remainingData := len(data) - consumed
+			log.Printf("DEBUG: consumed=%d, remainingData=%d, Content-Length=%s", consumed, remainingData, r.Headers.Get("Content-Length"))
+			if r.Headers.Get("Content-Length") == "" && remainingData == 0 {
+				r.Status = Done
+			}
+			return consumed, nil
 		}
 		return parsedHeaders, nil
 	case ParsingBody:
-		log.Println("parsing body")
 		contentLength := r.Headers.Get("Content-Length")
+		log.Printf("DEBUG ParsingBody: len(data)=%d, Content-Length=%s, Status=%d", len(data), contentLength, r.Status)
 		if contentLength == "" {
-			if len(data) == 0 {
-				r.Status = Done
-				return len(data), nil
+			log.Printf("DEBUG ParsingBody: no Content-Length, appending %d bytes", len(data))
+			if len(data) > 0 {
+				r.Body = append(r.Body, data...)
 			}
-			r.Body = append(r.Body, data...)
+			log.Printf("DEBUG ParsingBody: NOT setting Done yet, returning len(data)=%d", len(data))
 			return len(data), nil
 		}
 		ContentLength, _ := strconv.Atoi(contentLength)

@@ -2,13 +2,42 @@ package server
 
 import (
 	"bytes"
-	"fmt"
 	"io"
-	"strconv"
 
-	"github.com/RemcoVeens/tcp2http/internal/headers"
 	"github.com/RemcoVeens/tcp2http/internal/request"
 	"github.com/RemcoVeens/tcp2http/internal/response"
+)
+
+const (
+	BadRequestHTML = `<html>
+  <head>
+    <title>400 Bad Request</title>
+  </head>
+  <body>
+    <h1>Bad Request</h1>
+    <p>Your request honestly kinda sucked.</p>
+  </body>
+</html>`
+
+	InternalServerErrorHTML = `<html>
+  <head>
+    <title>500 Internal Server Error</title>
+  </head>
+  <body>
+    <h1>Internal Server Error</h1>
+    <p>Okay, you know what? This one is on me.</p>
+  </body>
+</html>`
+
+	OKHTML = `<html>
+  <head>
+    <title>200 OK</title>
+  </head>
+  <body>
+    <h1>Success!</h1>
+    <p>Your request was an absolute banger.</p>
+  </body>
+</html>`
 )
 
 type HandlerError struct {
@@ -24,53 +53,21 @@ func (e HandlerError) Error() string {
 func Handle(w *bytes.Buffer, r *request.Request) error {
 	switch r.RequestLine.RequestTarget {
 	case "/yourproblem":
-		return HandlerError{StatusCode: 400, Message: "Your problem is not my problem\n"}
+		return HandlerError{StatusCode: 400, Message: BadRequestHTML}
 	case "/myproblem":
-		return HandlerError{StatusCode: 500, Message: "Woopsie, my bad\n"}
+		return HandlerError{StatusCode: 500, Message: InternalServerErrorHTML}
 	default:
-		w.WriteString("All good, frfr\n")
+		w.WriteString(OKHTML)
 		return nil
 	}
-}
-
-type StatusCode int
-
-const (
-	OK                  = 200
-	BadRequest          = 400
-	InteranlServerError = 500
-)
-
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	switch statusCode {
-	case OK:
-		_, err := w.Write([]byte("HTTP/1.1 200 OK\r\n"))
-		return err
-	case BadRequest:
-		_, err := w.Write([]byte("HTTP/1.1 400 Bad Request\r\n"))
-		return err
-	case InteranlServerError:
-		_, err := w.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n"))
-		return err
-	default:
-		_, err := w.Write([]byte(fmt.Sprintf("HTTP/1.1 %d\r\n", statusCode)))
-		return err
-	}
-}
-
-func GetDefaultHeaders(contentLen int) headers.Headers {
-	headers := headers.Headers{}
-	headers["Content-Length"] = strconv.Itoa(contentLen)
-	headers["Connection"] = "close"
-	headers["Content-Type"] = "text/plain"
-	return headers
 }
 
 func WriteHandlerError(w io.Writer, err HandlerError) error {
 	if err := response.WriteStatusLine(w, response.StatusCode(err.StatusCode)); err != nil {
 		return err
 	}
-	headers := response.GetDefaultHeaders(len(err.Message))
+	headers := response.GetDefaultHTMLHeaders(len(err.Message))
+	headers["Connection"] = "close"
 	if err := response.WriteHeaders(w, headers); err != nil {
 		return err
 	}

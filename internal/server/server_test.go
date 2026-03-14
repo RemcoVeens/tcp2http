@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/RemcoVeens/tcp2http/internal/request"
+	"github.com/RemcoVeens/tcp2http/internal/response"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,18 +22,18 @@ func TestHandlerError(t *testing.T) {
 func TestWriteStatusLine(t *testing.T) {
 	tests := []struct {
 		name       string
-		statusCode StatusCode
+		statusCode response.StatusCode
 		expected   string
 	}{
-		{"OK", OK, "HTTP/1.1 200 OK\r\n"},
-		{"BadRequest", BadRequest, "HTTP/1.1 400 Bad Request\r\n"},
-		{"InternalServerError", InteranlServerError, "HTTP/1.1 500 Internal Server Error\r\n"},
+		{"OK", response.OK, "HTTP/1.1 200 OK\r\n"},
+		{"BadRequest", response.BadRequest, "HTTP/1.1 400 Bad Request\r\n"},
+		{"InternalServerError", response.InteranlServerError, "HTTP/1.1 500 Internal Server Error\r\n"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buf := &bytes.Buffer{}
-			err := WriteStatusLine(buf, tt.statusCode)
+			err := response.WriteStatusLine(buf, tt.statusCode)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, buf.String())
 		})
@@ -41,20 +42,20 @@ func TestWriteStatusLine(t *testing.T) {
 
 func TestWriteStatusLineUnknown(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := WriteStatusLine(buf, 404)
+	err := response.WriteStatusLine(buf, 404)
 	require.NoError(t, err)
 	assert.Equal(t, "HTTP/1.1 404\r\n", buf.String())
 }
 
 func TestGetDefaultHeaders(t *testing.T) {
-	headers := GetDefaultHeaders(13)
+	headers := response.GetDefaultHeaders(13)
 	assert.Equal(t, "13", headers["Content-Length"])
 	assert.Equal(t, "close", headers["Connection"])
 	assert.Equal(t, "text/plain", headers["Content-Type"])
 }
 
 func TestGetDefaultHeadersZero(t *testing.T) {
-	headers := GetDefaultHeaders(0)
+	headers := response.GetDefaultHeaders(0)
 	assert.Equal(t, "0", headers["Content-Length"])
 }
 
@@ -75,9 +76,9 @@ func TestHandle(t *testing.T) {
 		expectedStatus int
 		expectedBody   string
 	}{
-		{"Default path", "/", 200, "All good, frfr\n"},
-		{"Your problem", "/yourproblem", 400, "Your problem is not my problem\n"},
-		{"My problem", "/myproblem", 500, "Woopsie, my bad\n"},
+		{"Default path", "/", 200, OKHTML},
+		{"Your problem", "/yourproblem", 400, BadRequestHTML},
+		{"My problem", "/myproblem", 500, InternalServerErrorHTML},
 	}
 
 	for _, tt := range tests {
@@ -150,7 +151,7 @@ func TestServerHandle(t *testing.T) {
 
 		assert.True(t, conn.writer.Len() > 0)
 		assert.Contains(t, conn.writer.String(), "HTTP/1.1 200 OK")
-		assert.Contains(t, conn.writer.String(), "All good, frfr")
+		assert.Contains(t, conn.writer.String(), "Success!")
 	})
 
 	t.Run("Bad request", func(t *testing.T) {
@@ -183,7 +184,7 @@ func TestServerHandle(t *testing.T) {
 
 		assert.True(t, conn.writer.Len() > 0)
 		assert.Contains(t, conn.writer.String(), "HTTP/1.1 400 Bad Request")
-		assert.Contains(t, conn.writer.String(), "Your problem is not my problem")
+		assert.Contains(t, conn.writer.String(), "Bad Request")
 	})
 
 	t.Run("Internal server error from handler", func(t *testing.T) {
@@ -200,7 +201,7 @@ func TestServerHandle(t *testing.T) {
 
 		assert.True(t, conn.writer.Len() > 0)
 		assert.Contains(t, conn.writer.String(), "HTTP/1.1 500 Internal Server Error")
-		assert.Contains(t, conn.writer.String(), "Woopsie, my bad")
+		assert.Contains(t, conn.writer.String(), "Internal Server Error")
 	})
 
 	t.Run("Custom handler returns error", func(t *testing.T) {
