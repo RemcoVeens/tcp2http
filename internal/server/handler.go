@@ -120,9 +120,6 @@ func Handle(w io.Writer, r *request.Request) error {
 						if err != nil {
 							return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error writing chunk end: %v", err)}
 						}
-						if flusher, ok := w.(interface{ Flush() }); ok {
-							flusher.Flush()
-						}
 						hash := sha256.Sum256(fullBody)
 						w.Write([]byte("X-Content-Sha256: " + fmt.Sprintf("%x", hash) + "\r\n"))
 						w.Write([]byte("X-Content-Length: " + fmt.Sprintf("%d", len(fullBody)) + "\r\n"))
@@ -130,7 +127,7 @@ func Handle(w io.Writer, r *request.Request) error {
 						if flusher, ok := w.(interface{ Flush() }); ok {
 							flusher.Flush()
 						}
-						time.Sleep(10 * time.Millisecond)
+						time.Sleep(100 * time.Millisecond)
 						return nil
 					}
 					return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error reading response: %v", readErr)}
