@@ -137,16 +137,19 @@ func (r *Request) parse(data []byte) (int, error) {
 			return 0, parseErr
 		}
 		if done {
-			log.Printf("DEBUG: headers done, len(data)=%d, parsedHeaders=%d", len(data), parsedHeaders)
 			r.Status = ParsingBody
 			consumed := parsedHeaders
 			if parsedHeaders+2 <= len(data) && string(data[parsedHeaders:parsedHeaders+2]) == "\r\n" {
 				consumed += 2
 			}
 			remainingData := len(data) - consumed
-			log.Printf("DEBUG: consumed=%d, remainingData=%d, Content-Length=%s", consumed, remainingData, r.Headers.Get("Content-Length"))
-			if r.Headers.Get("Content-Length") == "" && remainingData == 0 {
-				r.Status = Done
+			if r.Headers.Get("Content-Length") == "" {
+				if remainingData == 0 {
+					r.Status = Done
+				} else {
+					r.Body = append(r.Body, data[consumed:]...)
+					r.Status = Done
+				}
 			}
 			return consumed, nil
 		}

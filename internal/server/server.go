@@ -1,7 +1,7 @@
 package server
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -58,20 +58,17 @@ func (s Server) handle(conn net.Conn) {
 		return
 	}
 
-	buf := &bytes.Buffer{}
-	err = s.handler(buf, req)
+	writer := bufio.NewWriter(conn)
+	err = s.handler(writer, req)
 	if err != nil {
 		if handlerErr, ok := err.(HandlerError); ok {
-			WriteHandlerError(conn, handlerErr)
+			WriteHandlerError(writer, handlerErr)
+			writer.Flush()
 			return
 		}
-		WriteHandlerError(conn, HandlerError{StatusCode: response.InteranlServerError, Message: err.Error()})
+		WriteHandlerError(writer, HandlerError{StatusCode: response.InteranlServerError, Message: err.Error()})
+		writer.Flush()
 		return
 	}
-
-	response.WriteStatusLine(conn, response.OK)
-	headers := response.GetDefaultHTMLHeaders(buf.Len())
-	headers["Connection"] = "close"
-	response.WriteHeaders(conn, headers)
-	conn.Write(buf.Bytes())
+	writer.Flush()
 }
