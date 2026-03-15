@@ -63,3 +63,7 @@ func (h Headers) Set(key, value string) {
 func NewHeaders() Headers {
 	return Headers{}
 }
+func (h Headers) Override(key, value string) {
+	key = strings.ToLower(key)
+	h[key] = value
+}

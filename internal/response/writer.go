@@ -3,6 +3,7 @@ package response
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/RemcoVeens/tcp2http/internal/headers"
 )
@@ -62,6 +63,7 @@ func (w *Writer) WriteTrailers(hdrs headers.Headers) error {
 		return errors.New("WriteTrailers called out of order")
 	}
 	for hdr := range hdrs {
+		fmt.Fprintf(&w.buf, "%s: %s\r\n", hdr, hdrs[hdr])
 		_, err := w.buf.Write([]byte(hdr + ": " + hdrs[hdr] + "\r\n"))
 		if err != nil {
 			return err

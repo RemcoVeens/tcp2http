@@ -28,7 +28,7 @@ func writeChunk(w io.Writer, data []byte) error {
 }
 
 func writeChunkedEnd(w io.Writer) error {
-	_, err := w.Write([]byte("0\r\n\r\n"))
+	_, err := w.Write([]byte("0\r\n"))
 	return err
 }
 
@@ -93,7 +93,7 @@ func Handle(w io.Writer, r *request.Request) error {
 		defer resp.Body.Close()
 
 		response.WriteStatusLine(w, response.OK)
-		hdrs := headers.Headers{}
+		hdrs := response.GetDefaultHeaders(0)
 		hdrs["Transfer-Encoding"] = "chunked"
 		hdrs["Trailer"] = "X-Content-Sha256, X-Content-Length"
 		hdrs["Content-Type"] = "text/html"
@@ -116,12 +116,14 @@ func Handle(w io.Writer, r *request.Request) error {
 				if readErr == io.EOF {
 					writeChunkedEnd(w)
 					hash := sha256.Sum256(fullBody)
-					w.Write([]byte("X-Content-Sha256: " + fmt.Sprintf("%x", hash) + "\r\n"))
-					w.Write([]byte("X-Content-Length: " + fmt.Sprintf("%d", len(fullBody)) + "\r\n"))
+					sha_str := fmt.Sprintf("%x", hash)
+					len_str := fmt.Sprintf("%d", len(fullBody))
+					w.Write([]byte("X-Content-Sha256: " + sha_str + "\r\n"))
+					w.Write([]byte("X-Content-Length: " + len_str + "\r\n"))
+					w.Write([]byte("\r\n"))
 					if flusher, ok := w.(interface{ Flush() }); ok {
 						flusher.Flush()
 					}
-					time.Sleep(100 * time.Millisecond)
 					return nil
 				}
 				return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error reading response: %v", readErr)}
