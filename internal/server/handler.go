@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -84,6 +85,18 @@ func Handle(w io.Writer, r *request.Request) error {
 		return HandlerError{StatusCode: 400, Message: BadRequestHTML}
 	case "/myproblem":
 		return HandlerError{StatusCode: 500, Message: InternalServerErrorHTML}
+	case "/video":
+		response.WriteStatusLine(w, response.OK)
+		hdrs := headers.Headers{}
+		hdrs["Content-Type"] = "video/mp4"
+		response.WriteHeaders(w, hdrs)
+		data, err := os.ReadFile("assets/vim.mp4")
+		if err != nil {
+			return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error reading file: %v", err)}
+		}
+		w.Write(data)
+		return nil
+
 	case "/httpbin/html":
 		url := "https://httpbin.org/html"
 		resp, err := httpClient.Get(url)
