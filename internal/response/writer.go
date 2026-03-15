@@ -56,3 +56,16 @@ func (w *Writer) Len() int {
 func (w *Writer) Bytes() []byte {
 	return w.buf.Bytes()
 }
+
+func (w *Writer) WriteTrailers(hdrs headers.Headers) error {
+	if w.writerState != writerStateBody {
+		return errors.New("WriteTrailers called out of order")
+	}
+	for hdr := range hdrs {
+		_, err := w.buf.Write([]byte(hdr + ": " + hdrs[hdr] + "\r\n"))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

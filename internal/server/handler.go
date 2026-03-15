@@ -1,12 +1,14 @@
 package server
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/RemcoVeens/tcp2http/internal/headers"
 	"github.com/RemcoVeens/tcp2http/internal/request"
 	"github.com/RemcoVeens/tcp2http/internal/response"
 )
@@ -93,14 +95,18 @@ func Handle(w io.Writer, r *request.Request) error {
 			defer resp.Body.Close()
 
 			response.WriteStatusLine(w, response.OK)
-			headers := response.GetDefaultHeaders(0)
-			headers["Transfer-Encoding"] = "chunked"
-			response.WriteHeaders(w, headers)
+			hdrs := headers.Headers{}
+			hdrs["Transfer-Encoding"] = "chunked"
+			hdrs[`Trailer`] = `X-Content-Sha256,X-Content-Length`
+			hdrs["Content-Type"] = "text/html"
+			response.WriteHeaders(w, hdrs)
 
+			var fullBody []byte
 			buffer := make([]byte, 1024)
 			for {
 				n, readErr := resp.Body.Read(buffer)
 				if n > 0 {
+					fullBody = append(fullBody, buffer[:n]...)
 					if wErr := writeChunk(w, buffer[:n]); wErr != nil {
 						return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error writing response: %v", wErr)}
 					}
@@ -111,6 +117,9 @@ func Handle(w io.Writer, r *request.Request) error {
 				if readErr != nil {
 					if readErr == io.EOF {
 						writeChunkedEnd(w)
+						hash := sha256.Sum256(fullBody)
+						w.Write([]byte("X-Content-Sha256: " + fmt.Sprintf("%x", hash) + "\r\n"))
+						w.Write([]byte("X-Content-Length: " + fmt.Sprintf("%d", len(fullBody)) + "\r\n"))
 						return nil
 					}
 					return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error reading response: %v", readErr)}

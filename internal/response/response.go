@@ -49,13 +49,23 @@ func GetDefaultHTMLHeaders(contentLen int) headers.Headers {
 	return headers
 }
 
-func WriteHeaders(w io.Writer, headers headers.Headers) error {
-	for hdr := range headers {
-		_, err := w.Write([]byte(hdr + ": " + headers[hdr] + "\r\n"))
+func WriteHeaders(w io.Writer, hdrs headers.Headers) error {
+	for hdr := range hdrs {
+		_, err := w.Write([]byte(hdr + ": " + hdrs[hdr] + "\r\n"))
 		if err != nil {
 			return err
 		}
 	}
 	_, err := w.Write([]byte("\r\n"))
 	return err
+}
+
+func WriteTrailers(w io.Writer, hdrs headers.Headers) error {
+	for hdr := range hdrs {
+		_, err := w.Write([]byte(hdr + ": " + hdrs[hdr] + "\r\n"))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
