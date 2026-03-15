@@ -97,7 +97,7 @@ func Handle(w io.Writer, r *request.Request) error {
 			response.WriteStatusLine(w, response.OK)
 			hdrs := headers.Headers{}
 			hdrs["Transfer-Encoding"] = "chunked"
-			hdrs[`Trailer`] = `X-Content-Sha256,X-Content-Length`
+			hdrs[`Trailer`] = `X-Content-Sha256, X-Content-Length`
 			hdrs["Content-Type"] = "text/html"
 			response.WriteHeaders(w, hdrs)
 
