@@ -84,6 +84,46 @@ func Handle(w io.Writer, r *request.Request) error {
 		return HandlerError{StatusCode: 400, Message: BadRequestHTML}
 	case "/myproblem":
 		return HandlerError{StatusCode: 500, Message: InternalServerErrorHTML}
+	case "/httpbin/html":
+		url := "https://httpbin.org/html"
+		resp, err := httpClient.Get(url)
+		if err != nil {
+			return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error fetching upstream: %v", err)}
+		}
+		defer resp.Body.Close()
+
+		response.WriteStatusLine(w, response.OK)
+		hdrs := headers.Headers{}
+		hdrs["Content-Type"] = "text/html"
+
+		var fullBody []byte
+		buffer := make([]byte, 1024)
+		for {
+			n, readErr := resp.Body.Read(buffer)
+			if n > 0 {
+				fullBody = append(fullBody, buffer[:n]...)
+				if wErr := writeChunk(w, buffer[:n]); wErr != nil {
+					return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error writing response: %v", wErr)}
+				}
+				if flusher, ok := w.(interface{ Flush() }); ok {
+					flusher.Flush()
+				}
+			}
+			if readErr != nil {
+				if readErr == io.EOF {
+					writeChunkedEnd(w)
+					hash := sha256.Sum256(fullBody)
+					w.Write([]byte("X-Content-Sha256: " + fmt.Sprintf("%x", hash) + "\r\n"))
+					w.Write([]byte("X-Content-Length: " + fmt.Sprintf("%d", len(fullBody)) + "\r\n"))
+					if flusher, ok := w.(interface{ Flush() }); ok {
+						flusher.Flush()
+					}
+					time.Sleep(100 * time.Millisecond)
+					return nil
+				}
+				return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error reading response: %v", readErr)}
+			}
+		}
 	default:
 		target := r.RequestLine.RequestTarget
 		if subpath, ok := strings.CutPrefix(target, "/httpbin/"); ok {
