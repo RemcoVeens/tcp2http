@@ -161,7 +161,7 @@ func Handle(w io.Writer, r *request.Request) error {
 							return HandlerError{StatusCode: 502, Message: fmt.Sprintf("error writing chunk end: %v", err)}
 						}
 						hash := sha256.Sum256(fullBody)
-						w.Write([]byte("X-Content-Sha256: " + fmt.Sprintf("%x", hash) + "\r\n"))
+						w.Write([]byte("X-Content-SHA256: " + fmt.Sprintf("%x", hash) + "\r\n"))
 						w.Write([]byte("X-Content-Length: " + fmt.Sprintf("%d", len(fullBody)) + "\r\n"))
 						w.Write([]byte("\r\n"))
 						if flusher, ok := w.(interface{ Flush() }); ok {
